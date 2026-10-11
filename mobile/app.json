@@ -1,0 +1,84 @@
+{
+  "expo": {
+    "name": "MindNest",
+    "slug": "mindnest",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mindnest",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "in.sctce.mindnest",
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2E76BC",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "in.sctce.mindnest",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#208AEF",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MindNest shares your location with your caregivers so they are told if you leave your safe places."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1F5FAD"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MindNest uses the camera to tell you who someone is. Photos are not kept.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MindNest lets caregivers choose photos of family members so they can be recognised.",
+          "cameraPermission": "MindNest uses the camera to add photos of family members."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "MindNest uses the microphone to hear your questions and, when everyone agrees, to save conversations."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2592e72c-6f64-4450-ac6f-42ab1e55c280"
+      }
+    },
+    "owner": "neerajramb"
+  }
+}
