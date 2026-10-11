@@ -31,7 +31,7 @@ export function PlanSuggestions({ patientId, timeZone, plans, onDone, onAdded }:
     date === today ? 'Today' : date === addDays(today, 1) ? 'Tomorrow' : formatDay(`${date}T12:00:00Z`);
   const accept = (plan: SuggestedReminder) =>
     addReminder
-      .mutateAsync(plan)
+      .mutateAsync({ ...plan, source: 'conversation' })
       .then(() => {
         onDone(plan);
         onAdded(plan);
@@ -52,7 +52,7 @@ export function PlanSuggestions({ patientId, timeZone, plans, onDone, onAdded }:
               label="Add reminder"
               icon="add"
               onPress={() => void accept(plan)}
-              loading={addReminder.isPending && addReminder.variables === plan}
+              loading={addReminder.isPending && addReminder.variables?.title === plan.title && addReminder.variables.time === plan.time}
               style={{ flex: 1 }}
             />
             <Button label="No thanks" tone="ghost" onPress={() => onDone(plan)} style={{ flex: 1 }} />

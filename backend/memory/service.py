@@ -155,7 +155,8 @@ def retire(conversation: Conversation, user: User) -> None:
     conversation.messages.all().delete()
     conversation.retention_status = Retention.RETIRED
     conversation.save(update_fields=["retention_status"])
-    log_event("memory.deleted", actor=user, patient=conversation.patient)
+    person = conversation.recognized_person
+    log_event("memory.deleted", actor=user, patient=conversation.patient, person=person.name if person else None)
 
 
 __all__ = ["ConversationSource", "Hit", "chunk", "ingest", "retire", "search", "text_note_segments"]

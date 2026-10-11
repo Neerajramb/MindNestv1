@@ -133,6 +133,7 @@ def mark_missed(*, now: datetime | None = None) -> int:
             "reminder.missed",
             patient=reminder.patient,
             reminder_type=reminder.type,
+            message=reminder.message,
             scheduled_at=reminder.scheduled_at.isoformat(),
         )
         if reminder.type in ALERT_ON_MISSED:
@@ -167,6 +168,7 @@ def acknowledge(reminder: Reminder, user: User, *, now: datetime | None = None) 
         actor=user,
         patient=reminder.patient,
         reminder_type=reminder.type,
+        message=reminder.message,
         late=reminder.acknowledged_late,
     )
     return reminder
@@ -183,5 +185,12 @@ def snooze(reminder: Reminder, user: User, minutes: int, *, now: datetime | None
     reminder.status = ReminderStatus.SNOOZED
     reminder.snoozed_until = now + timedelta(minutes=minutes)
     reminder.save(update_fields=["status", "snoozed_until"])
-    log_event("reminder.snoozed", actor=user, patient=reminder.patient, reminder_type=reminder.type, minutes=minutes)
+    log_event(
+        "reminder.snoozed",
+        actor=user,
+        patient=reminder.patient,
+        reminder_type=reminder.type,
+        message=reminder.message,
+        minutes=minutes,
+    )
     return reminder

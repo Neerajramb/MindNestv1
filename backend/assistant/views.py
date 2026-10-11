@@ -50,7 +50,9 @@ def _session(patient: Patient, session_id: Any) -> AssistantSession | None:
     return get_object_or_404(AssistantSession, pk=session_id, patient=patient)
 
 
-def _run(request: Request, patient: Patient, question: str, session_id: Any, person_id: Any) -> dict[str, Any]:
+def _run(
+    request: Request, patient: Patient, question: str, session_id: Any, person_id: Any, *, spoken: bool = False
+) -> dict[str, Any]:
     session = _session(patient, session_id)
     person = _person(patient, person_id) or (session.context_person if session else None)
     if session and person and session.context_person_id != person.id:
@@ -59,7 +61,15 @@ def _run(request: Request, patient: Patient, question: str, session_id: Any, per
     intent = classify(patient, question)
     result = answer(patient, question, intent, context_person=person)
     # Log the kind of question, not its content (API spec section 17: no unnecessary sensitive content).
-    log_event("assistant.query", actor=user_of(request), patient=patient, intent=intent, used_llm=result.used_llm)
+    log_event(
+        "assistant.query",
+        actor=user_of(request),
+        patient=patient,
+        intent=intent,
+        used_llm=result.used_llm,
+        spoken=spoken,
+        person=person.name if person else None,
+    )
     return {"question": question, **result.as_dict()}
 
 
@@ -155,5 +165,12 @@ class VoiceQueryView(APIView):
         if not question:
             raise ValidationError({"audio": "I didn't catch that. Please try again or type your question."})
         return Response(
-            _run(request, patient, question, field(request, "session_id"), field(request, "context_person_id"))
+            _run(
+                request,
+                patient,
+                question,
+                field(request, "session_id"),
+                field(request, "context_person_id"),
+                spoken=True,
+            )
         )

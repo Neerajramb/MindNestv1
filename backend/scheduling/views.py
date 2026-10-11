@@ -16,6 +16,7 @@ from audit.models import LogCategory
 from audit.service import log_event
 from care.models import Patient
 from core.permissions import IsCaregiver, IsPatientOrCaregiver, user_of
+from core.request_data import field
 from core.scope import resolve_owned, resolve_patient
 from notifications.models import AlertType, Severity
 from notifications.service import create_alert
@@ -71,6 +72,14 @@ class RoutineListView(APIView):
         refresh_source(patient, routine.id)
         _audit(request, "routine.created", patient, routine_id=str(routine.id))
         if by_patient:
+            log_event(
+                "reminder.added",
+                actor=user,
+                patient=patient,
+                title=routine.title,
+                summary=describe_routine(routine),
+                from_conversation=field(request, "source") == "conversation",
+            )
             create_alert(
                 patient,
                 AlertType.PATIENT_REMINDER,

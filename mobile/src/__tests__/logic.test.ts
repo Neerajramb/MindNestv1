@@ -1,11 +1,12 @@
 import { describe, expect, test } from '@jest/globals';
 
-import type { AlertItem, Reminder, SafetySummary } from '@/api/types';
+import type { ActivityEntry, AlertItem, Reminder, SafetySummary } from '@/api/types';
 import { displayState } from '@/components/reminder-card';
 import { describeSafety } from '@/components/safety-status';
 import { newAlerts } from '@/features/caregiver-alerts';
 import { nextReminder } from '@/features/next-reminder';
 import { upcomingToSchedule } from '@/features/reminder-notifications';
+import { describeActivity } from '@/lib/activity';
 import { describeRule } from '@/lib/recurrence';
 import { reminderSections } from '@/lib/reminder-sections';
 import { addDays, formatClock, isValidClock, isoDateIn } from '@/lib/time';
@@ -105,5 +106,35 @@ describe('reminderSections', () => {
     const sections = reminderSections(list, 'Asia/Kolkata', NOW);
     expect(sections.map((s) => s.title)).toEqual(['Later today', 'Tomorrow', 'Monday, 12 October', 'Done']);
     expect(sections[1].items.map((r) => r.message)).toEqual(['Have lunch']);
+  });
+});
+
+describe('describeActivity', () => {
+  const entry = (event_type: string, event_data: Record<string, unknown>): ActivityEntry => ({
+    id: 'a', category: 'ACTIVITY', event_type, event_data, actor_name: 'Thomas', actor_role: 'PATIENT', created_at: NOW.toISOString(),
+  });
+
+  test('says who was seen, what was recorded and which reminder was added', () => {
+    expect(describeActivity(entry('face.recognition', { result: 'RECOGNIZED', person: 'Neeraj', via: 'live' }))).toEqual({
+      title: 'Saw Neeraj', detail: 'Seen in Live', icon: 'person',
+    });
+    expect(describeActivity(entry('memory.saved', { source: 'VOICE', person: 'Neeraj' })).title).toBe('Recorded a conversation with Neeraj');
+    expect(describeActivity(entry('memory.saved', { source: 'TEXT', person: null })).title).toBe('Wrote a note to remember');
+    expect(
+      describeActivity(
+        entry('reminder.added', { title: 'Have lunch with Neeraj', summary: 'Have lunch with Neeraj at 3:00 pm on Mon 12 Oct', from_conversation: true }),
+      ),
+    ).toEqual({ title: 'Added a reminder: Have lunch with Neeraj', detail: '3:00 pm on Mon 12 Oct · From a saved conversation', icon: 'reminders' });
+  });
+
+  test('reminders, questions and alerts read as sentences, and older entries still make sense', () => {
+    expect(describeActivity(entry('reminder.acknowledged', { message: 'Take Metformin', late: true }))).toMatchObject({
+      title: 'Done: Take Metformin', detail: 'Confirmed late',
+    });
+    expect(describeActivity(entry('reminder.acknowledged', { reminder_type: 'MEDICATION' })).title).toBe('Confirmed a reminder (medication)');
+    expect(describeActivity(entry('assistant.query', { intent: 'MEDICATION', spoken: true })).title).toBe('Asked MindNest about their medicines');
+    expect(describeActivity(entry('alert.created', { alert_type: 'SOS' })).title).toBe('Asked for help');
+    expect(describeActivity(entry('face.recognition', { result: 'RECOGNIZED', person: 'Neeraj', live: true })).detail).toBe('Seen in Live');
+    expect(describeActivity(entry('something.new', {})).title).toBe('something new');
   });
 });

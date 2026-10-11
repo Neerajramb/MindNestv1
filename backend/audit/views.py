@@ -1,11 +1,13 @@
 from uuid import UUID
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
 
+from accounts.models import Role
 from audit.models import ActivityLog, LogCategory
+from care.models import MemoryAccess
 from core.permissions import IsCaregiver, IsPatientOrCaregiver, user_of
 from core.scope import resolve_patient
 
@@ -30,8 +32,16 @@ class PatientActivityView(ListAPIView):
 
     def get_queryset(self) -> QuerySet[ActivityLog]:
         patient_id: UUID = self.kwargs["patient_id"]
-        patient = resolve_patient(user_of(self.request), patient_id)
-        return ActivityLog.objects.filter(patient=patient, category=self.category).select_related("actor")
+        user = user_of(self.request)
+        patient = resolve_patient(user, patient_id)
+        entries = ActivityLog.objects.filter(patient=patient, category=self.category).select_related("actor")
+        # "Added a reminder" already says it; the matching alert stays in the Alerts tab.
+        entries = entries.exclude(event_type="alert.created", event_data__alert_type="PATIENT_REMINDER")
+        if user.role == Role.CAREGIVER and patient.caregiver_memory_access == MemoryAccess.NONE:
+            entries = entries.exclude(
+                Q(event_type__startswith="memory.") | Q(event_type="assistant.query", event_data__intent="MEMORY")
+            )
+        return entries
 
 
 @extend_schema(tags=["activity"])

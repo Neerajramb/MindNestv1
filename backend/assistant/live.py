@@ -6,6 +6,7 @@ Live screen is open. The photo is never stored.
 
 from typing import Any
 
+from django.core.cache import cache
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -20,6 +21,8 @@ from core.media import read_image
 from core.permissions import IsPatient, user_of
 from core.scope import own_patient
 from people.service import Recognition, recognize
+
+SIGHTING_LOG_SECONDS = 600
 
 
 class LookSerializer(serializers.Serializer):
@@ -52,14 +55,19 @@ class LiveLookView(APIView):
             face = recognize(get_face_engine(), patient, rgb)
         except FaceModelsMissing:
             face = None
-        if face is not None and face.status in ("RECOGNIZED", "UNKNOWN"):
+        seen = face.person.pk if face is not None and face.person else "unknown"
+        if (
+            face is not None
+            and face.status in ("RECOGNIZED", "UNKNOWN")
+            and cache.add(f"live-sighting:{patient.pk}:{seen}", 1, SIGHTING_LOG_SECONDS)
+        ):
             log_event(
                 "face.recognition",
                 actor=user,
                 patient=patient,
                 result=face.status,
                 person=face.person.name if face.person else None,
-                live=True,
+                via="live",
             )
 
         data: dict[str, Any] = {

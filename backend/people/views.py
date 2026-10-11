@@ -141,5 +141,6 @@ class FaceRecognizeView(APIView):
             patient=patient,
             result=result.status,
             person=result.person.name if result.person else None,
+            via="who_is_this",
         )
         return Response(result.as_dict())
