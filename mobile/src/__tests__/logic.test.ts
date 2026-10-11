@@ -7,6 +7,7 @@ import { newAlerts } from '@/features/caregiver-alerts';
 import { nextReminder } from '@/features/next-reminder';
 import { upcomingToSchedule } from '@/features/reminder-notifications';
 import { describeRule } from '@/lib/recurrence';
+import { reminderSections } from '@/lib/reminder-sections';
 import { addDays, formatClock, isValidClock, isoDateIn } from '@/lib/time';
 
 const NOW = new Date('2026-10-10T04:00:00Z'); // 09:30 IST
@@ -91,4 +92,18 @@ test('repeat rules are described in plain words', () => {
   expect(describeRule('FREQ=DAILY')).toBe('Every day');
   expect(describeRule('FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR')).toBe('Weekdays');
   expect(describeRule('FREQ=WEEKLY;BYDAY=MO')).toBe('Some days each week');
+});
+
+describe('reminderSections', () => {
+  test('upcoming reminders are grouped by day, so a plan for tomorrow sits under "Tomorrow"', () => {
+    const list = [
+      reminder({ id: 'tue', message: 'Lunch', due_at: '2026-10-12T07:30:00Z', scheduled_at: '2026-10-12T07:30:00Z' }),
+      reminder({ id: 'mon', message: 'Have lunch', due_at: '2026-10-11T09:30:00Z', scheduled_at: '2026-10-11T09:30:00Z' }),
+      reminder({ id: 'sat', message: 'Walk', due_at: '2026-10-10T05:30:00Z', scheduled_at: '2026-10-10T05:30:00Z' }),
+      reminder({ id: 'done', status: 'ACKNOWLEDGED', due_at: '2026-10-10T03:00:00Z', scheduled_at: '2026-10-10T03:00:00Z' }),
+    ];
+    const sections = reminderSections(list, 'Asia/Kolkata', NOW);
+    expect(sections.map((s) => s.title)).toEqual(['Later today', 'Tomorrow', 'Monday, 12 October', 'Done']);
+    expect(sections[1].items.map((r) => r.message)).toEqual(['Have lunch']);
+  });
 });
