@@ -7,7 +7,9 @@ import { Alert, Linking, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { useMyPatient } from '@/api/hooks';
+import type { SavedConversation, SuggestedReminder } from '@/api/assistant';
 import { liveLook, type LivePerson } from '@/api/live';
+import { PlanSuggestions } from '@/components/plan-suggestions';
 import { usePatientId } from '@/features/patient-context';
 import { uploadAudio, useVoiceRecorder } from '@/features/voice-recorder';
 import { Button } from '@/ui/button';
@@ -32,7 +34,8 @@ export default function Live() {
   const client = useQueryClient();
   const navigation = useNavigation();
   const patientId = usePatientId();
-  const voice = useMyPatient().data?.voice_responses_enabled ?? true;
+  const me = useMyPatient().data;
+  const voice = me?.voice_responses_enabled ?? true;
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [ready, setReady] = useState(false);
@@ -42,6 +45,8 @@ export default function Live() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestedReminder[]>([]);
+  const tz = me?.timezone;
 
   // Refs keep the polling timer and recorder callbacks reading current values.
   const frameBusy = useRef(false);
@@ -122,11 +127,12 @@ export default function Live() {
     setSaving(true);
     setError(null);
     try {
-      await uploadAudio('/conversations/record', uri, {
+      const saved = await uploadAudio<SavedConversation>('/conversations/record', uri, {
         consent_confirmed: 'true',
         ...(withWhom ? { person_id: withWhom.id } : {}),
       });
       if (patientId) void client.invalidateQueries({ queryKey: ['patient', patientId, 'conversations'] });
+      setSuggestions(saved.suggested_reminders ?? []);
       say(
         withWhom
           ? `I saved your conversation with ${withWhom.name}. You can ask me about it later.`
@@ -150,6 +156,7 @@ export default function Live() {
     }
     recordingRef.current = true;
     setMessage(null);
+    setSuggestions([]);
   };
 
   const stopRecording = async () => {
@@ -258,6 +265,14 @@ export default function Live() {
           </View>
         </View>
       </Card>
+
+      <PlanSuggestions
+        patientId={patientId}
+        timeZone={tz}
+        plans={suggestions}
+        onDone={(plan) => setSuggestions((list) => list.filter((p) => p !== plan))}
+        onAdded={(plan) => say(`I added a reminder: ${plan.title}.`)}
+      />
 
       {error ? <InlineNotice tone="danger" message={error} /> : null}
 

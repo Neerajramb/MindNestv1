@@ -4,10 +4,11 @@ import { Alert, Switch, View } from 'react-native';
 
 import { api, errorMessage } from '@/api/client';
 import { useConversations, usePeopleList, type SavedConversation, type SuggestedReminder } from '@/api/assistant';
-import { useAddMyReminder, useMyPatient } from '@/api/hooks';
+import { useMyPatient } from '@/api/hooks';
+import { PlanSuggestions } from '@/components/plan-suggestions';
 import { usePatientId } from '@/features/patient-context';
 import { uploadAudio, useVoiceRecorder } from '@/features/voice-recorder';
-import { addDays, formatClock, formatDateTime, formatDay, isoDateIn } from '@/lib/time';
+import { formatDateTime } from '@/lib/time';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { TextField } from '@/ui/form';
@@ -30,7 +31,6 @@ export default function Memory() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'success' | 'danger' } | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestedReminder[]>([]);
-  const addReminder = useAddMyReminder(patientId);
   const extra = (): Record<string, string> => ({
     consent_confirmed: 'true',
     ...(personId !== 'none' ? { person_id: personId } : {}),
@@ -84,18 +84,7 @@ export default function Memory() {
     }
   };
 
-  const today = isoDateIn(tz);
-  const dayLabel = (date: string) =>
-    date === today ? 'Today' : date === addDays(today, 1) ? 'Tomorrow' : formatDay(`${date}T12:00:00Z`);
   const drop = (plan: SuggestedReminder) => setSuggestions((list) => list.filter((p) => p !== plan));
-  const accept = (plan: SuggestedReminder) =>
-    addReminder
-      .mutateAsync(plan)
-      .then(() => {
-        drop(plan);
-        setMessage({ text: `Reminder added: ${plan.title}. Your caregiver can see it too.`, tone: 'success' });
-      })
-      .catch((e) => Alert.alert('Could not add the reminder', errorMessage(e)));
 
   const remove = (id: string) =>
     Alert.alert('Delete this memory?', 'It will be removed for good, and I will no longer be able to remind you of it.', [
@@ -145,29 +134,13 @@ export default function Memory() {
         </AppText>
       </Card>
 
-      {suggestions.length ? (
-        <Card tint={colors.primarySoft}>
-          <AppText variant="title">I heard a plan</AppText>
-          <AppText>Would you like a reminder?</AppText>
-          {suggestions.map((plan) => (
-            <View key={`${plan.title}-${plan.date}-${plan.time}`} style={{ gap: space.sm }}>
-              <AppText variant="bodyStrong">
-                {plan.title} · {dayLabel(plan.date)} at {formatClock(plan.time)}
-              </AppText>
-              <View style={{ flexDirection: 'row', gap: space.sm }}>
-                <Button
-                  label="Add reminder"
-                  icon="add"
-                  onPress={() => void accept(plan)}
-                  loading={addReminder.isPending && addReminder.variables === plan}
-                  style={{ flex: 1 }}
-                />
-                <Button label="No thanks" tone="ghost" onPress={() => drop(plan)} style={{ flex: 1 }} />
-              </View>
-            </View>
-          ))}
-        </Card>
-      ) : null}
+      <PlanSuggestions
+        patientId={patientId}
+        timeZone={tz}
+        plans={suggestions}
+        onDone={drop}
+        onAdded={(plan) => setMessage({ text: `Reminder added: ${plan.title}. Your caregiver can see it too.`, tone: 'success' })}
+      />
 
       <AppText variant="title">My memories</AppText>
       {conversations.isLoading ? <LoadingState /> : null}
