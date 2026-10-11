@@ -212,6 +212,34 @@ def test_note_suggests_future_plans_as_reminders(world: dict[str, Any], monkeypa
     assert f"{now:%d %B %Y}" in prompts[0]
 
 
+def test_plans_made_with_the_person_name_them(world: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from ai.speech import Segment
+    from memory.plans import suggest_reminders
+
+    neeraj = Person.objects.create(patient=world["pat"], name="Neeraj", relationship="Friend", consent_confirmed=True)
+    later = datetime.now(ZoneInfo("Asia/Kolkata")) + timedelta(hours=2)
+    day, at = later.date().isoformat(), f"{later:%H:%M}"
+    prompts: list[str] = []
+
+    def fake_llm(system: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
+        prompts.append(prompt)
+        return {
+            "plans": [
+                {"title": "Have lunch", "date": day, "time": at, "with_person": True},
+                {"title": "Visit Neeraj's house", "date": day, "time": at, "with_person": True},
+                {"title": "Take medicine", "date": day, "time": at, "with_person": False},
+            ]
+        }
+
+    monkeypatch.setattr("memory.plans.generate_json", fake_llm)
+    plans = suggest_reminders(world["pat"], [Segment("PERSON", "We are having lunch at 3 pm")], neeraj)
+    assert [p["title"] for p in plans] == ["Have lunch with Neeraj", "Visit Neeraj's house", "Take medicine"]
+    assert "The patient is talking with Neeraj, their friend." in prompts[0]
+
+
 def test_note_still_saves_when_plan_extraction_is_unavailable(world: dict[str, Any]) -> None:
     response = _note(world, "We are going to the park at 4pm")
     assert response.status_code == 201

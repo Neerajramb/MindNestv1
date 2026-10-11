@@ -31,6 +31,8 @@ SYSTEM = (
     "reminders. Only include plans with a clear clock time (e.g. 'at 4pm', 'half past nine'). Skip vague times "
     "('later', 'in the evening'), past events and general facts. Resolve 'today', 'tomorrow' and weekday names "
     "using the current date given. Write each title as a short action for the patient, e.g. 'Go to the park'. "
+    "If you are told who the patient is talking with, set with_person to true for plans the patient will do "
+    "together with that person (for example 'we are having lunch'), otherwise false. "
     "Use YYYY-MM-DD for date and 24-hour HH:MM for time. Return an empty list if there are none."
 )
 
@@ -41,8 +43,13 @@ SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"title": {"type": "string"}, "date": {"type": "string"}, "time": {"type": "string"}},
-                "required": ["title", "date", "time"],
+                "properties": {
+                    "title": {"type": "string"},
+                    "date": {"type": "string"},
+                    "time": {"type": "string"},
+                    "with_person": {"type": "boolean"},
+                },
+                "required": ["title", "date", "time", "with_person"],
             },
         }
     },
@@ -59,22 +66,33 @@ def suggest_reminders(
     transcript = "\n".join(f"{speaker_label(s.speaker, person)}: {s.text}" for s in segments)
     if not TIME_WORDS.search(transcript):
         return []
-    prompt = f"Now: {local_now:%A %d %B %Y, %H:%M}.\n\nConversation:\n{transcript}"
+    company = ""
+    if person is not None:
+        relation = f", their {person.relationship.lower()}" if person.relationship else ""
+        company = f"The patient is talking with {person.name}{relation}.\n"
+    prompt = f"Now: {local_now:%A %d %B %Y, %H:%M}.\n{company}\nConversation:\n{transcript}"
     try:
         raw = generate_json(SYSTEM, prompt, SCHEMA).get("plans")
     except AIUnavailable:
         return []
-    return _clean(raw if isinstance(raw, list) else [], local_now)
+    return _clean(raw if isinstance(raw, list) else [], local_now, person)
 
 
-def _clean(raw: list[object], local_now: datetime) -> list[dict[str, str]]:
-    """Keep well-formed plans that are still ahead and within the next week, without duplicates."""
+def _clean(raw: list[object], local_now: datetime, person: Person | None = None) -> list[dict[str, str]]:
+    """Keep well-formed plans that are still ahead and within the next week, without duplicates.
+
+    A plan made together with the person in the conversation names them ("Have lunch with Neeraj"), so the patient
+    and their caregiver can tell who it is with. The name is added here rather than left to the model's wording.
+    """
     plans: list[dict[str, str]] = []
     seen = set()
     for item in raw:
         if not isinstance(item, dict):
             continue
-        title = str(item.get("title", "")).strip()[:120]
+        title = str(item.get("title", "")).strip()
+        if person is not None and item.get("with_person") is True and person.name.lower() not in title.lower():
+            title = f"{title} with {person.name}"
+        title = title[:120]
         try:
             day = date.fromisoformat(str(item.get("date", "")))
             at = time.fromisoformat(str(item.get("time", "")))
